@@ -3,6 +3,15 @@ const axios = require('axios');
 const { saveShipsInBay, getKnownShipIds, addAlert } = require('./store');
 const { sendNotification } = require('./notifications');
 
+// Golden Gate entrance corridor
+// Covers full strait from China Beach / Lands End to Marin Headlands
+const TRIGGER_ZONE = {
+  minlat: 37.77,
+  maxlat: 37.86,
+  minlon: -122.56,
+  maxlon: -122.44
+};
+
 function formatDate(value) {
   if (!value) return '—';
   const d = new Date(value);
@@ -36,63 +45,41 @@ function guessCompany(name) {
   return 'Cruise Line';
 }
 
-function getMockShips() {
-  const now = new Date();
-  return [
-    {
-      MMSI: '123456789',
-      SHIPNAME: 'Ruby Princess',
-      STATUS: 'Docked',
-      LAST_PORT: 'Los Angeles, CA',
-      DESTINATION: 'Seattle, WA',
-      TIMESTAMP: new Date(now - 2 * 3600000).toISOString(),
-      ETA: new Date(now - 1 * 3600000).toISOString(),
-      ETD: new Date(now + 8 * 3600000).toISOString()
-    },
-    {
-      MMSI: '987654321',
-      SHIPNAME: 'Carnival Miracle',
-      STATUS: 'Docked',
-      LAST_PORT: 'Ensenada, Mexico',
-      DESTINATION: 'SF Home Port',
-      TIMESTAMP: new Date(now - 18 * 3600000).toISOString(),
-      ETA: new Date(now - 16 * 3600000).toISOString(),
-      ETD: new Date(now + 2 * 3600000).toISOString()
-    }
-  ];
-}
-
 async function checkForNewShips() {
   const apiKey = process.env.MARINETRAFFIC_API_KEY;
-  let rawShips = [];
 
   if (!apiKey) {
-    console.warn('No API key — using mock data');
-    rawShips = getMockShips();
-  } else {
-    try {
-      const response = await axios.get(
-        `https://services.marinetraffic.com/api/getvessel/v:8/${apiKey}/protocol:jsono`,
-        {
-          params: {
-            minlat: 37.45, maxlat: 37.95,
-            minlon: -122.55, maxlon: -122.15,
-            vessel_type: '60,61,62,63,64,65,66,67,68,69',
-            msgtype: 'extended'
-          },
-          timeout: 10000
-        }
-      );
-      rawShips = response.data || [];
-    } catch (err) {
-      console.error('MarineTraffic error:', err.message);
-      rawShips = getMockShips();
-    }
+    console.warn('No MARINETRAFFIC_API_KEY — skipping poll, no mock notifications.');
+    return [];
+  }
+
+  let rawShips = [];
+
+  try {
+    const response = await axios.get(
+      `https://services.marinetraffic.com/api/getvessel/v:8/${apiKey}/protocol:jsono`,
+      {
+        params: {
+          minlat: TRIGGER_ZONE.minlat,
+          maxlat: TRIGGER_ZONE.maxlat,
+          minlon: TRIGGER_ZONE.minlon,
+          maxlon: TRIGGER_ZONE.maxlon,
+          vessel_type: '60,61,62,63,64,65,66,67,68,69',
+          msgtype: 'extended'
+        },
+        timeout: 10000
+      }
+    );
+    rawShips = response.data || [];
+    console.log(`MarineTraffic: ${rawShips.length} cruise ship(s) at Golden Gate`);
+  } catch (err) {
+    console.error('MarineTraffic error:', err.message);
+    return [];
   }
 
   const knownIds = getKnownShipIds();
   const ships = rawShips.map(raw => {
-    const id = String(raw.MMSI || raw.IMO || Math.random());
+    const id = String(raw.MMSI || raw.IMO || '');
     return {
       id,
       name: raw.SHIPNAME || 'Unknown Ship',
@@ -106,24 +93,26 @@ async function checkForNewShips() {
       eta_time: formatTime(raw.ETA),
       etd_date: formatDate(raw.ETD),
       etd_time: formatTime(raw.ETD),
+      lat: raw.LAT,
+      lon: raw.LON,
       is_new: !knownIds.has(id)
     };
   });
 
   for (const ship of ships) {
     if (ship.is_new) {
-      console.log(`🆕 New ship: ${ship.name}`);
+      console.log(`🆕 New ship at Golden Gate: ${ship.name}`);
       await sendNotification(ship);
       addAlert({
         ship_name: ship.name,
-        message: `${ship.name} · From: ${ship.from} · Docks: ${ship.eta_date} ${ship.eta_time} · Departs: ${ship.etd_date} ${ship.etd_time} → ${ship.to}`,
+        message: `${ship.name} · From: ${ship.from} · Docks: ${ship.eta_date} at ${ship.eta_time} · Departs: ${ship.etd_date} at ${ship.etd_time} → ${ship.to}`,
         sent_at: new Date().toISOString()
       });
     }
   }
 
   saveShipsInBay(ships);
-  console.log(`${ships.length} ship(s) in bay. ${ships.filter(s => s.is_new).length} new.`);
+  console.log(`${ships.length} ship(s) in zone. ${ships.filter(s => s.is_new).length} new.`);
   return ships;
 }
 
