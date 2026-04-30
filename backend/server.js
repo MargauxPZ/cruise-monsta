@@ -28,6 +28,28 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
 });
 
+// TEST ENDPOINT — sends a fake notification to your phone
+app.get('/api/test', async (req, res) => {
+  const { sendNotification, sendDepartureNotification } = require('./notifications');
+  
+  const fakeShip = {
+    name: 'Ruby Princess',
+    company: 'Princess Cruises',
+    terminal: 'Pier 27',
+    from: 'Los Angeles, CA',
+    to: 'Seattle, WA',
+    eta_date: '4/29/2026',
+    eta_time: '8:00 AM',
+    etd_date: '4/29/2026',
+    etd_time: '4:00 PM'
+  };
+
+  await sendNotification(fakeShip);
+  await sendDepartureNotification(fakeShip);
+  
+  res.json({ status: 'Test notifications sent! Check your phone 📱' });
+});
+
 cron.schedule('*/15 * * * *', async () => {
   console.log(`[${new Date().toLocaleTimeString()}] Polling SF Bay for cruise ships...`);
   try {
