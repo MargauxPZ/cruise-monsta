@@ -13,11 +13,11 @@ const ARRIVAL_GREETINGS = [
 ];
 
 const DEPARTURE_GREETINGS = [
-  "Babe, heads up!",
+  "Amooooooour, heads up!",
   "Yo, catch it while you can!",
   "Last call, legend!",
   "Quick, run to the window!",
-  "Don't miss it, bootiful!",
+  "Don't miss it, Jonas Ananas!",
   "She's leaving! Go look!",
   "5 mins, go go go!",
   "Byeee ship, wave wave wave!"
