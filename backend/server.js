@@ -50,8 +50,8 @@ app.get('/api/test', async (req, res) => {
   res.json({ status: 'Test notifications sent! Check your phone 📱' });
 });
 
-cron.schedule('*/15 * * * *', async () => {
-  console.log(`[${new Date().toLocaleTimeString()}] Polling SF Bay for cruise ships...`);
+cron.schedule('*/5 * * * *', async () => {
+  console.log(`[${new Date().toLocaleTimeString()}] Polling SF Bay for cruise ships (every 5 min)...`);
   try {
     await checkForNewShips();
   } catch (err) {
