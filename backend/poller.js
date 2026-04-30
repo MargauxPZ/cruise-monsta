@@ -24,7 +24,6 @@ function getTodayMonth() {
   });
 }
 
-// Convert "08:00" to "8:00 AM"
 function formatTime(timeStr) {
   if (!timeStr || timeStr.trim() === '' || timeStr.trim() === '-') return '—';
   const match = timeStr.trim().match(/(\d{1,2}):(\d{2})/);
@@ -36,7 +35,6 @@ function formatTime(timeStr) {
   return `${h}:${mins} ${ampm}`;
 }
 
-// Convert "8:00 AM" to a Date object today in PST
 function timeStringToDate(timeStr) {
   if (!timeStr || timeStr === '—') return null;
   const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
@@ -47,7 +45,9 @@ function timeStringToDate(timeStr) {
   if (ampm === 'PM' && hours !== 12) hours += 12;
   if (ampm === 'AM' && hours === 12) hours = 0;
   const now = new Date();
-  const pst = new Date(now.toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles' }));
+  const pst = new Date(now.toLocaleDateString('en-US', {
+    timeZone: 'America/Los_Angeles'
+  }));
   pst.setHours(hours, mins, 0, 0);
   return pst;
 }
@@ -68,20 +68,17 @@ async function fetchTodaysShips() {
 
   const html = response.data;
   const today = getTodayDay();
-  const todayMonth = getTodayMonth(); // e.g. "April"
+  const todayMonth = getTodayMonth();
   const ships = [];
 
-  // Match table rows
   const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
   let rowMatch;
 
   while ((rowMatch = rowRegex.exec(html)) !== null) {
     const row = rowMatch[1];
-
-    // Strip HTML tags from cells
-    const cellRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi;
     const cells = [];
     let cellMatch;
+    const cellRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi;
     while ((cellMatch = cellRegex.exec(row)) !== null) {
       const text = cellMatch[1]
         .replace(/<[^>]+>/g, ' ')
@@ -94,17 +91,11 @@ async function fetchTodaysShips() {
 
     if (cells.length < 4) continue;
 
-    // cells[0] = "29 April, 2026 Wednesday"
-    // cells[1] = "Cruise Line ShipName"
-    // cells[2] = arrival time or empty
-    // cells[3] = departure time or "next day date, time"
-
     const dayCell = cells[0];
     if (!dayCell.includes(todayMonth)) continue;
     const dayNum = parseInt(dayCell);
     if (isNaN(dayNum) || dayNum !== today) continue;
 
-    // Extract ship name — remove cruise line prefix
     let shipName = cells[1]
       .replace(/Princess Cruises Cruises cruise line/gi, '')
       .replace(/Holland America Cruises cruise line/gi, '')
@@ -122,7 +113,6 @@ async function fetchTodaysShips() {
     const arrivalRaw = cells[2] || '';
     const departureRaw = cells[3] || '';
 
-    // Handle next-day departures like "30 Apr, 18:00"
     let departureTime = '—';
     const nextDayMatch = departureRaw.match(/\d+\s+\w+,\s+(\d{1,2}:\d{2})/);
     if (nextDayMatch) {
@@ -184,7 +174,7 @@ async function checkForNewShips() {
   // Arrival notifications
   for (const ship of ships) {
     if (ship.is_new) {
-      console.log(`🆕 New ship: ${ship.name}`);
+      console.log(`New ship: ${ship.name}`);
       await sendNotification(ship);
       addAlert({
         ship_name: ship.name,
@@ -198,14 +188,13 @@ async function checkForNewShips() {
   for (const ship of ships) {
     const depId = `${ship.id}-departing`;
     if (isDepartingInFiveMinutes(ship.etd_time) && !knownIds.has(depId)) {
-      console.log(`🚢 ${ship.name} departing in 5 minutes!`);
+      console.log(`${ship.name} departing in 5 minutes!`);
       await sendDepartureNotification(ship);
       addAlert({
         ship_name: ship.name,
         message: `${ship.name} is leaving the bay in 5 minutes! Departing at ${ship.etd_time}`,
         sent_at: new Date().toISOString()
       });
-      // Save departure as notified
       const s = ships.find(x => x.id === ship.id);
       if (s) s.id = depId;
     }
